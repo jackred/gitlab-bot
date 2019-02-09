@@ -12,7 +12,7 @@ var server = http.createServer(function (request, response) {
   request.on('data', function(chunk) {
     body += chunk;
   });
-  request.on('end', () => sendMessage(request, body));
+  request.on('end', () => sendMessage(request, JSON.parse(body)));
   response.writeHead(200, {"Content-Type": "text/plain"}); 
   response.end("ok\n");
 });
@@ -42,7 +42,6 @@ function respondToMessage(message){
 }
 
 function sendMessage(request, body){
-  console.log(body);
   let config = gitlabConfig[body["repository"]["url"]];
   let guild = config["guild"];
   let ref = body["ref"].split("/").pop();
