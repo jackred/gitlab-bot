@@ -1,0 +1,13 @@
+{
+  "name": "gitlab-bot",
+  "version": "1.0.0",
+  "description": "gitlab bot",
+  "main": "app.js",
+  "author": "jackred <jackred@tuta.io>",
+  "license": "ISC",
+  "dependencies": {
+    "bufferutil": "^4.0.1",
+    "discord.js": "^11.4.2",
+    "erlpack": "^0.1.2"
+  }
+}
