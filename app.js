@@ -9,8 +9,8 @@ const port = 3000;
 // Configure our HTTP server to respond with Hello World to all requests.
 var server = http.createServer(function (request, response) {
   let body = "";
-  request.on('readable', function() {
-    body += request.read();
+  request.on('data', function(chunk) {
+    body += chunk;
   });
   request.on('end', () => sendMessage(request, body));
   response.writeHead(200, {"Content-Type": "text/plain"}); 
@@ -42,6 +42,7 @@ function respondToMessage(message){
 }
 
 function sendMessage(request, body){
+  console.log(body);
   let config = gitlabConfig[body["repository"]["url"]];
   let guild = config["guild"];
   let ref = body["ref"].split("/").pop();
