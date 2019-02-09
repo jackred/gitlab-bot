@@ -1,0 +1,8 @@
+{
+  "git@example.com:mike/diaspora.git": {
+    "guild": "<Discord Server ID>",
+    "branch": {
+      "default": "<Channel ID>",
+      "master": "<Channel IDx>"
+    },
+}

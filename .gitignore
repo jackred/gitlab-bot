@@ -1,6 +1,7 @@
 *~
 *#
 config.json
+gitlab.json
 node_modules
 .npm
 .tgz

@@ -10,7 +10,10 @@ Running the bot:
 `./start.sh`
 
 
+## Debug 
+run `./start.sh debug` to be in interactive mode  
+
 ## Configuration
 
-TODO: write the bot workflow
+Complete the `config.json` and `gitlab.json` with the sample file as example  
 
