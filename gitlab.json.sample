@@ -5,4 +5,6 @@
       "default": "<Channel ID>",
       "master": "<Channel IDx>"
     },
+    "color": <color decimal>,
+    "secret": "<gilab integration secret token>"
 }
