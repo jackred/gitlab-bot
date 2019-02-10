@@ -72,7 +72,11 @@ function getChange(commit, str){
     let res = "**File "+ str +":**\n";
     res += "-> " + commit.join("\n-> ");
     res += "\n";
-    return res;
+    if (res.length < 250){
+      return res;
+    } else {
+      return "";
+    }
   } else {
     return "";
   }
