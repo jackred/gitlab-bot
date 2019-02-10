@@ -15,19 +15,31 @@ function formatDate(date){
 }
 
 // Configure our HTTP server to respond with Hello World to all requests.
-var server = http.createServer(function (request, response) {
+var server = http.createServer(function (request, response){
+  let res = "";
   if ("x-gitlab-event" in request["headers"]){
     let body = "";
-    request.on('data', function(chunk) {
+    request.on('data', function(chunk){
       body += chunk;
     });
-    request.on('end', () => sendMessage(request, JSON.parse(body)));
-    response.writeHead(200, {"Content-Type": "text/plain"}); 
-    response.end("Hook ok\n");
+    request.on('end', function(){
+      try {
+	sendMessage(request, JSON.parse(body));
+	res = "Hook ok\n";
+	response.writeHead(200, {"Content-Type": "text/plain"}); 
+	response.end(res);
+      } catch (e){
+	console.log("JSON invalid: ", e);
+	response.writeHead(400, {"Content-Type": "text/plain"}); 
+	response.end("NO\n");
+      }
+    });
   } else {
+    res = "link to git\n";
     response.writeHead(200, {"Content-Type": "text/plain"}); 
-    response.end("link to git\n");
+    response.end(res);
   }
+
 });
 // Listen on port 3000, IP defaults to 127.0.0.1
 server.listen(port);
