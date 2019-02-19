@@ -98,6 +98,9 @@ function getChange(change, str){
   if(change.length != 0){
     let res = {name: change.length + " **file(s) "+ str +":**",
 	       value: "-> " + change.join("\n-> ")};
+    if (res["value"].length > 1000){
+      res["value"] = res["value"].substring(0,1000) + "...(too long)";
+    }
     return res;
   } else {
     return {name: "0 **file** " + str + "\n",
@@ -105,26 +108,12 @@ function getChange(change, str){
   }
 }
 
-function cutted(array){
-  let length = array.reduce((acc, a) => acc + a["value"].length, 0);
-  while ((length > 5000)){
-    array.sort((a,b) => a.length < b.length);
-    if (array[0].length < length - 5000){
-      array[0] = array[0].split("\n")[0] + "... (too long)\n";
-    } else {
-      array[0] = array[0].substring(0, length - 5000) + "... (too long)\n";
-    }
-    length = array.reduce((acc, a) => acc + a.length, 0);
-  }
-  return array;
-}
 
 function createCommitFields(commit){
   let added = getChange(commit["added"], "added");
   let modified = getChange(commit["modified"], "modified");
   let removed = getChange(commit["removed"], "removed");
   let tmp = [added, modified, removed];
-  cutted(tmp);
   return tmp;
 }
 
