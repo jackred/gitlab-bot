@@ -24,7 +24,7 @@ var server = http.createServer(function (request, response){
     });
     request.on('end', function(){
       try {
-	sendMessage(request, JSON.parse(body));
+	createEmbedMessage(request, JSON.parse(body));
 	res = "Hook ok\n";
 	response.writeHead(200, {"Content-Type": "text/plain"}); 
 	response.end(res);
@@ -44,7 +44,7 @@ var server = http.createServer(function (request, response){
 // Listen on port 3000, IP defaults to 127.0.0.1
 server.listen(port);
 // Put a friendly message on the terminal
-console.log("Server running at http://127.0.0.1:3000/");
+console.log("Server running at http://127.0.0.1:3000/test");
 
 
 console.log("Gitlab bots is starting");
@@ -67,88 +67,171 @@ function respondToMessage(message){
 }
 
 
-function getChange(commit, str){
-  if(commit.length != 0){
-    let res = "**File "+ str +":**\n";
-    res += "-> " + commit.join("\n-> ");
-    res += "\n";
-    if (res.length < 250){
-      return res;
-    } else {
-      return "";
-    }
-  } else {
-    return "";
-  }
-}
-
-function createFields(body){
-  let fields = body["commits"].map(function(commit){
-    let index = commit["message"].indexOf("\n");
-    let msgOne = commit["message"].substring(0,index);
-    let msgTwo = commit["message"].substring(index+1);
-    let added = getChange(commit["added"], "added");
-    let modified = getChange(commit["modified"], "modified");
-    let removed = getChange(commit["removed"], "removed");
-    return {
-      name: ("**[Commit " + commit["id"].substring(0,8) + "]** by *" +
-	     commit["author"]["name"] + "*: __**" + msgOne + "**__"),
-      value: (msgTwo + "\n" +
-	      "[link to commit on gitlab]"+"(" + commit["url"] + ")\n" +
-	      "**Timestamp:** " +
-	      formatDate(new Date(commit["timestamp"])) + "\n" +
-	      added +
-	      modified +
-	      removed	      
-	     )
-    };
-  });
-  return fields;
-}
-
-function sendMessage(request, body){
-  let config = gitlabConfig[body["repository"]["url"]];
-  if (request["headers"]["x-gitlab-token"] == config["secret"]){
-    let guild = config["guild"];
+function createEmbedMessage(request, body){
+  let repoConfig = gitlabConfig[body["repository"]["url"]];
+  if (request["headers"]["x-gitlab-token"] == repoConfig["secret"]){
+    let commitsTitle = createCommitsTitle(body["commits"]);
+    let embeds = [];
+    embeds.push(buildEmbedPushMessage(repoConfig, body, commitsTitle));
+    body["commits"].reduce(function(acc,d){
+      acc.push(buildEmbedCommitMessage(repoConfig, d, body["repository"]["name"], commitsTitle[d["id"]]));
+      return acc;
+    }, embeds);
+    embeds = {"embeds": embeds};
     let ref = body["ref"].split("/").pop();
-    let channel = "";
-    if (ref in config["branch"]){
-      channel = config["branch"][ref];  
+    let hook = {};
+    if (ref in repoConfig["branch"]){
+      hook = repoConfig["branch"][ref];  
     } else {
-      channel = config["branch"]["default"];
+      hook = repoConfig["branch"]["default"];
     }
-    console.log("GIT Event:", body["object_kind"]);
-    console.log("REF", ref);
-    console.log("GUILD", guild);
-    console.log("CHANNEL", channel);
-    console.log("Message Sent");
-    let fields = createFields(body);
-    sendEmbedMessage(config, body, fields, guild, channel);
+    sendEmbedMessagesHook(embeds, hook);
   } else {
     console.log("Invalid token: ",
 		request["headers"]["x-gitlab-token"],
 		"expected: ",
-		config["secret"]);
+		repoConfig["secret"]);
   }
 }
 
-function sendEmbedMessage(config, body, fields, guild, channel){
-  client.guilds.get(guild)["channels"].get(channel).send({
-    embed:{
-      color: config["color"],
-      author: {
-	name: body["user_name"] + " <" + body["user_email"]+ ">",
-	icon_url: body["user_avatar"]
-      },
-      title: (body["total_commits_count"] + " commits **PUSH** on __" +
-	      body["repository"]["name"]+"__"),
-      url: body["repository"]["homepage"],
-      timestamp: new Date(),
-      footer:{
-	icon_url: "https://i.imgur.com/ezC66kZ.png",
-	text: "GitLab"
-      },
-      fields: fields      
+function getChange(change, str){
+  if(change.length != 0){
+    let res = {name: change.length + " **file(s) "+ str +":**",
+	       value: "-> " + change.join("\n-> ")};
+    return res;
+  } else {
+    return {name: "0 **file** " + str + "\n",
+	    value: "None"};
+  }
+}
+
+function cutted(array){
+  let length = array.reduce((acc, a) => acc + a["value"].length, 0);
+  while ((length > 5000)){
+    array.sort((a,b) => a.length < b.length);
+    if (array[0].length < length - 5000){
+      array[0] = array[0].split("\n")[0] + "... (too long)\n";
+    } else {
+      array[0] = array[0].substring(0, length - 5000) + "... (too long)\n";
     }
+    length = array.reduce((acc, a) => acc + a.length, 0);
+  }
+  return array;
+}
+
+function createCommitFields(commit){
+  let added = getChange(commit["added"], "added");
+  let modified = getChange(commit["modified"], "modified");
+  let removed = getChange(commit["removed"], "removed");
+  let tmp = [added, modified, removed];
+  cutted(tmp);
+  return tmp;
+}
+
+
+function createAuthor(author){
+  if ((author["name"].length + author["email"].length + 3) <= 256){
+    return author["name"] + " <" + author["email"] + ">";
+  } else if (author["name"].length <= 256){
+    return author["name"];
+  } else {
+    return author["name"].substring(0, 253) + "...";
+  }
+}
+
+function createCommitTitle(commit){
+  let index = (commit["message"]+"\n").indexOf("\n");
+  let msgOne = commit["message"].substring(0,index);
+  let msgTwo = commit["message"].substring(index+1);
+  let tmp = "**[Commit " + commit["id"].substring(0,8) + "]** ";
+  if (msgOne.length > 230){
+    msgOne = msgOne.substring(0,230) + "...";
+  }
+  if (msgTwo.length > 900){
+    msgTwo = msgTwo.substring(0,900) + "...";
+  }
+    return [tmp + msgOne, msgTwo, commit["url"]];
+  
+}
+
+function createCommitsTitle(commits){
+  return commits.reduce(function(acc, a){
+      acc[a["id"]] = createCommitTitle(a);
+    return acc;
+  }, {});
+}
+
+
+function createPushTitle(totalCommits, repoName){
+  if (repoName.length > 200){
+    return (totalCommits + "commits **PUSH** on __" +
+	    repoName.substring(0,200) + "...__");
+  } else {
+    return totalCommits + " commits **PUSH** on __" + repoName + "__";
+  }
+}
+
+function createFooterText(text){
+  if (text > 150){
+    text = text.substring(0,150) + "...";
+  }
+  return "GitLab - " + text;
+}
+
+
+function buildEmbedPushMessage(repoConfig, body, commitsTitle){
+  let fields = Object.keys(commitsTitle).map(function(d){
+    return {
+      name: commitsTitle[d][0],
+      value: "[link to commit]("+commitsTitle[d][2] + ")\n" + commitsTitle[d][1],
+    };
   });
+  return {
+    color: repoConfig["color"],
+    author: {
+      name: createAuthor({name: body["user_name"],
+			  email: body["user_email"]}),
+      icon_url: body["user_avatar"]
+    },
+    title: createPushTitle(body["total_commits_count"],body["repository"]["name"]),
+    url: body["repository"]["homepage"],
+    timestamp: new Date(),
+    footer: {
+      icon_url: "https://i.imgur.com/ezC66kZ.png",
+      text: createFooterText(body["repository"]["name"]) 
+    },
+    fields: fields
+  };
+}
+
+function buildEmbedCommitMessage(repoConfig, commit, nameProject, title){
+  let fields = createCommitFields(commit);
+  return {
+    color: repoConfig["color"],
+    author: {
+      name: createAuthor(commit["author"]),
+      icon_url: config["avatar"]
+    },
+    title: title[0],
+    description: title[1],
+    url: commit["url"],
+    timestamp: commit["timestamp"],
+    footer: {
+      icon_url: config["avatar"],
+      text: createFooterText(nameProject)
+    },
+    fields: fields
+  };
+}
+
+
+function sendEmbedMessageChannel(embed, channel){
+  channel.sendEmbed(embed);
+}
+
+function sendEmbedMessagesHook(embedList, webHook){
+  let hook = new Discord.WebhookClient(webHook.id, webHook.token);
+  console.log("Message sent");
+  console.log(embedList["embeds"].length + " message(s) sent");
+  hook.send(embedList);
 }
